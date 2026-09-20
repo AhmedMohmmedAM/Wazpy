@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wazpy"
+version = "0.5.0"
+description = "Wazpy (WhatsApp Python) - a Python wrapper around Baileys for building WhatsApp bots"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+license-files = ["LICENSE"]
+
+authors = [
+    { name = "AhmedMohmmedAM" }
+]
+
+keywords = [
+    "whatsapp",
+    "baileys",
+    "bot",
+    "chat",
+    "automation",
+    "whatsapp-socket"
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/AhmedMohmmedAM/Wazpy"
+Repository = "https://github.com/AhmedMohmmedAM/Wazpy"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+wazpy = ["node/**/*"]
