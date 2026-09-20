@@ -43,4 +43,4 @@ include-package-data = true
 where = ["."]
 
 [tool.setuptools.package-data]
-wazpy = ["node/**/*"]
+wazpy = ["node/*.js", "node/package.json", "node/package-lock.json", "node/config.json", "node/assets/*"]
