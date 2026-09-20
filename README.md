@@ -1,300 +1,213 @@
-# WAsock
+# Wazpy
 
-![WAsock Logo](assets/logo.png)
+**Wazpy** is a Python library for building WhatsApp bots with a clean, event-driven API powered by [Baileys](https://github.com/WhiskeySockets/Baileys) under the hood. It gives you full control over messages, commands, reactions, and connection events — with an easy-to-use decorator-based syntax and built-in customization options.
 
-**WAsock** (WhatsApp Socket) is a lightweight Python library for interacting with WhatsApp, built on top of [Baileys](https://github.com/WhiskeySockets/Baileys) via a Node.js subprocess that communicates with Python over a TCP socket.
-
-Made by an Egyptian developer 🇪🇬 — Ahmed Mohmmed-AM.
-
-> **Status:**`0.5.3-Beta` — still under development. The API may change before a stable release.
+Wazpy runs a lightweight Node.js server internally (bundled with the package) that talks to WhatsApp via Baileys, while you write all your bot logic in plain Python.
 
 ---
 
-## Overview
+## Features
 
-WAsock provides a simple Python interface for interacting with WhatsApp without writing JavaScript.
-
-It supports:
-
-* Receiving messages
-* Sending messages
-* Replying to messages
-* Deleting messages
-* Quoted/replied message information
-* QR code login
-* Pairing code login
-* Connection status handling
-* Custom browser information
-* Full history synchronization
-
-WAsock is built on top of [Baileys](https://github.com/WhiskeySockets/Baileys). It runs Baileys in a Node.js subprocess and communicates with it through a local TCP socket, allowing WhatsApp functionality to be controlled entirely from Python.
-
----
-
-## Requirements
-
-* Python >= 3.8
-* Node.js >= 18 recommended
-* An internet connection to install the required npm dependencies
+- 🎯 **Event-driven API** — simple `@bot.on(...)` decorators for every event
+- 💬 **Command system** — built-in prefix-based command parsing (e.g. `.echo`, `.help`)
+- 😀 **Reaction handling** — detect when users react to messages, with automatic lookup of the original message
+- 🔐 **Pairing code & QR login** — connect without scanning a QR code if you prefer
+- 🗂️ **Persistent message cache** — reactions can resolve the original message even after a restart
+- 👋 **Graceful shutdown** — send a custom "goodbye" message when your bot shuts down
+- ⚙️ **Highly configurable** — logger level, auth folder, browser identity, command case-sensitivity, and more
 
 ---
 
 ## Installation
 
 ```bash
-pip install wasock
+pip install wazpy
 ```
+
+> Requires [Node.js](https://nodejs.org/) to be installed on your system, since Wazpy runs a small Node.js server internally to communicate with WhatsApp.
 
 ---
 
 ## Quick Start
 
 ```python
-from wasock import WhatsAppSocket, Message, QRCode, Connection, Browser
+from wazpy import WhatsAppSocket, Browser
+from wazpy.utils import Message, Command, Connection, Reaction
 
 bot = WhatsAppSocket(
     authName="auth",
     loggerLevel="silent",
+    syncFullHistory=False,
     browserInfo=Browser.ubuntu("Chrome"),
-    syncFullHistory=False
+    commandPrefixs=["."],
+    commandCaseSens=False,
+    nodeJSPort=5000,
+    nodeJSHost="default",
 )
 
-def onLogin(data):
-    qr = QRCode(
-        data["qr"],
-        bot.nodeJS,
-        small=True,
-        type="img",
-        imgWidth=500
-    )
-    qr.render("qr.png")
-    print("Scan qr.png with WhatsApp on your phone")
+def main():
 
-def onConnection(data):
-    conn = Connection(data)
+    @bot.on("login")
+    def onLogin(_):
+        code = bot.requestPairingCode("201234567890")
+        print(f"Your pairing code is: {code}")
 
-    if conn.connected:
-        print("Connection opened!")
-    else:
-        print(f"Connection closed: {conn.reason}")
+    @bot.on("connection")
+    def onConnection(conn: Connection):
+        if conn.connected:
+            print("Connected!")
+        else:
+            print(f"Disconnected ({conn.reason})")
 
-def onMessage(data):
-    message = Message(data, bot.nodeJS)
+    @bot.on("message")
+    def onMessage(msg: Message):
+        if not Message.isMessage(msg) or msg.fromMe:
+            return
 
-    if message.fromMe:
-        return
+        if msg.text and "hello" in msg.text.lower():
+            msg.reply("Hello there!")
 
-    if message.text == "!ping":
-        message.reply("pong")
+    @bot.on("command")
+    def onCommand(cmd: Command):
+        if cmd.name == "echo":
+            cmd.msg.reply(" ".join(cmd.args))
 
-bot.on("login", onLogin)
-bot.on("connection", onConnection)
-bot.on("message", onMessage)
+    @bot.on("reaction")
+    def onReaction(react: Reaction):
+        if not Message.isMessage(react.msg) or not react.msg.fromMe:
+            return
+        if react.removed:
+            return
 
-bot.start()
+        if react.emoji == "🗑️":
+            react.msg.delete()
+
+    @bot.on("shutdown")
+    def onShutDown(lastMsg: Message):
+        if lastMsg is None or not lastMsg.valid:
+            return
+        lastMsg.send("Bot is shutting down. Goodbye!")
+
+    bot.start()
+
+if __name__ == "__main__":
+    main()
+```
+
+Run it, scan the QR code (or use the pairing code), and your bot is live.
+
+---
+
+## Configuration Options
+
+`WhatsAppSocket(...)` accepts the following parameters:
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `authName` | `str` | `"auth"` | Folder name where session credentials are stored |
+| `loggerLevel` | `str` | `"silent"` | Baileys logger level (`debug`, `error`, `fatal`, `info`, `silent`, `trace`, `warn`) |
+| `syncFullHistory` | `bool` | `False` | Whether to sync full chat history on connect |
+| `browserInfo` | `list` | `Browser.ubuntu("Chrome")` | Browser identity shown to WhatsApp |
+| `commandPrefixs` | `list[str]` | `["."]` | List of single special-character prefixes that trigger the `command` event |
+| `commandCaseSens` | `bool` | `True` | Whether command names are case-sensitive |
+| `nodeJSPort` | `int` | `5000` | Port used for the internal Python ↔ Node.js connection |
+| `nodeJSHost` | `str` | `"default"` | Host for the internal connection (`"default"` = `127.0.0.1`, `"all"` = `0.0.0.0`) |
+
+---
+
+## Events Reference
+
+Register any event with the `@bot.on("event_name")` decorator.
+
+### `login`
+Fired when a QR code is available. Use it to request a pairing code instead, if you prefer.
+```python
+@bot.on("login")
+def onLogin(_):
+    code = bot.requestPairingCode("201234567890")
+```
+
+### `connection`
+Fired when the connection opens or closes.
+```python
+@bot.on("connection")
+def onConnection(conn: Connection):
+    print(conn.connected, conn.reason)
+```
+
+### `message`
+Fired for every incoming message that isn't a recognized command.
+```python
+@bot.on("message")
+def onMessage(msg: Message):
+    print(msg.text, msg.sender, msg.chat)
+```
+
+Useful `Message` attributes: `text`, `sender`, `chat`, `fromMe`, `quoted`, `quotedText`, `phone`, and methods `reply()`, `send()`, `delete()`.
+
+### `command`
+Fired when a message starts with one of your configured prefixes.
+```python
+@bot.on("command")
+def onCommand(cmd: Command):
+    print(cmd.name, cmd.args)
+```
+
+### `reaction`
+Fired when someone reacts to (or removes a reaction from) a message.
+```python
+@bot.on("reaction")
+def onReaction(react: Reaction):
+    print(react.emoji, react.removed, react.sender)
+```
+
+`react.msg` gives you the original `Message` object that was reacted to, resolved from Wazpy's built-in message cache — even across restarts.
+
+### `shutdown`
+Fired once, right before the bot shuts down (e.g. on `Ctrl+C`). Useful for sending a farewell message.
+```python
+@bot.on("shutdown")
+def onShutDown(lastMsg: Message):
+    if lastMsg:
+        lastMsg.send("Goodbye!")
+```
+
+You can also set a custom shutdown message that Wazpy sends automatically to the last active chat:
+```python
+bot.shutdownMsg = "The bot is going offline!"
 ```
 
 ---
 
-# API
+## Pairing Code Login
 
-## `WhatsAppSocket`
+Instead of scanning a QR code every time, you can request a pairing code:
 
 ```python
-WhatsAppSocket(
-    authName="auth",
-    loggerLevel="silent",
-    browserInfo=Browser.ubuntu("Chrome"),
-    syncFullHistory=False
-)
+code = bot.requestPairingCode("201234567890")
+print(f"Enter this code in WhatsApp: {code}")
 ```
 
-Creates a WhatsApp connection and configures the Node.js backend.
-
-### Parameters
-
-
-| Parameter         | Description                              |
-| ----------------- | ---------------------------------------- |
-| `authName`        | Name/path of the authentication folder   |
-| `loggerLevel`     | Pino logger level                        |
-| `browserInfo`     | Browser information used by Baileys      |
-| `syncFullHistory` | Whether to synchronize full chat history |
-
-### Methods
-
-* `.start()` — starts the WhatsApp connection.
-* `.on(event, callback)` — registers an event listener.
-* `.requestPairingCode(phoneNumber, customPairingCode=None)` — requests a pairing code instead of scanning a QR code.
-* `.end()` — closes the connection and stops the Node.js process.
-
-`customPairingCode`, when provided, must contain exactly 8 uppercase letters/digits.
-
----
-
-## `Browser`
-
-Provides predefined browser configurations for Baileys.
-
-Examples:
-
+Optionally pass a custom 8-character code (uppercase letters and digits only):
 ```python
-Browser.ubuntu("Chrome")
-Browser.macOS("Chrome")
-Browser.windows("Chrome")
-```
-
-You can also provide custom browser information:
-
-```python
-Browser(
-    platform="Ubuntu",
-    browser="Chrome",
-)
-```
-
-The browser information is used as the WhatsApp Web client identity. It does not launch or control an actual web browser (Some times requestPairingCode will not work).
-
----
-
-## `Message`
-
-A `Message` object is created for each incoming WhatsApp message.
-
-### Properties
-
-
-| Property        | Description                                          |
-| --------------- | ---------------------------------------------------- |
-| `.text`         | The message text, or`None`if the message has no text |
-| `.chat`         | The chat JID                                         |
-| `.key`          | The message key                                      |
-| `.fromMe`       | `True`if the message was sent by the bot             |
-| `.quoted`       | The quoted message data, if this message is a reply  |
-| `.quotedKey`    | The key of the quoted message, if available          |
-| `.quotedId`     | The ID of the quoted message                         |
-| `.quotedSender` | The sender of the quoted message                     |
-| `.quotedFromMe` | Whether the quoted message was sent by the bot       |
-| `.quotedText`   | The text of the quoted message, if available         |
-
-### Methods
-
-* `.reply(msg, chat=None, quoted=None)` — replies to the message.
-* `.send(msg, chat=None)` — sends a new message without a quote.
-* `.delete(messageKey=None)` — deletes a message for everyone.
-
-For example, to delete the message being replied to:
-
-```python
-if message.quotedKey:
-    message.delete(message.quotedKey)
+code = bot.requestPairingCode("201234567890", customPairingCode="ABCD1234")
 ```
 
 ---
 
-## `QRCode`
+## Requirements
 
-```python
-QRCode(
-    data,
-    nodeJS,
-    small=True,
-    type="terminal",
-    imgWidth=500
-)
-```
-
-Handles QR code rendering.
-
-### Parameters
-
-
-| Parameter  | Description                                       |
-| ---------- | ------------------------------------------------- |
-| `data`     | The raw QR string received from the`"login"`event |
-| `nodeJS`   | The`bot.nodeJS`instance                           |
-| `small`    | Compact QR mode for terminal output               |
-| `type`     | `"terminal"`or`"img"`                             |
-| `imgWidth` | Image width in pixels when using`"img"`           |
-
-`imgWidth` must be an `int`.
-
-### Methods
-
-* `.render(imgName="qr.png")` — renders the QR code.
-
-For `"terminal"`, the QR code is printed directly to the terminal.
-
-For `"img"`, the QR code is saved as an image file.
-
----
-
-## `Connection`
-
-Represents the current WhatsApp connection state.
-
-### Properties
-
-* `.connected` — `True` if the connection is open.
-* `.statusCode` — the disconnect status code, if available.
-* `.reason` — the disconnect reason, if available.
-
-### Methods
-
-* `.isAuthFailure()` — returns `True` if the connection closed because of an authentication failure and a new login is required.
-
----
-
-## Events
-
-WAsock currently provides these events:
-
-
-| Event          | Description                                          |
-| -------------- | ---------------------------------------------------- |
-| `"login"`      | Emitted when a QR code is available                  |
-| `"connection"` | Emitted when the WhatsApp connection opens or closes |
-| `"message"`    | Emitted when a new message is received               |
-
-Example:
-
-```python
-bot.on("message", onMessage)
-```
-
----
-
-## Important Notes
-
-* The `auth/` folder contains sensitive WhatsApp session data. **Never commit it to GitHub.**
-* The location of `auth/` is resolved relative to the program's current working directory, not the library's installation directory.
-* WAsock requires Node.js because Baileys runs inside a Node.js subprocess.
-* The API is still under development and may change before the next stable release.
-
----
-
-## Support
-
-If you need help, have a question, or encounter an issue, you can contact:
-
-**Email:**[wasock.support@gmail.com](https://mail.google.com/mail/?view=cm&fs=1&to=wasock.support@gmail.com)
+- Python 3.9+
+- Node.js (installed and available in your system's `PATH`)
 
 ---
 
 ## License
 
-MIT License — see the [LICENSE](https://chatgpt.com/c/LICENSE) file for details.
+*(No license specified yet — add one here, e.g. MIT, before publishing.)*
 
 ---
 
-## ChangeLog
+## Contributing
 
-See the [ChangeLog](https://chatgpt.com/c/ChangeLog.md) file for the complete change history.
-
----
-
-## Author
-
-**Ahmed Mohmmed-AM** — Egyptian developer 🇪🇬
-
-GitHub: [@AhmedMohmmed-AM](https://github.com/AhmedMohmmed-AM)
+Issues and pull requests are welcome. If you run into a bug or have a feature idea, feel free to open an issue.
