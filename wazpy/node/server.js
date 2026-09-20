@@ -154,6 +154,20 @@ const server = net.createServer((socket) => {
     let processing = false;
     const queue = [];
 
+    socket.on("error", (err) => {
+        if (err.code == "ECONNRESET") {
+            console.error("[\x1b[1;33mNodeJS-Server\x1b[0m] Wazpy-Client is not connected use 'start()' in 'WhatsAppSocket()'");
+        } else {
+            console.error("[\x1b[1;33mNodeJS-Server\x1b[0m] Socket error: ", err.message);
+        }
+        process.exit(1);
+    });
+
+    socket.on("close", () => {
+        console.log("[\x1b[1;33mNodeJS-Server\x1b[0m] Connection with Python client closed.");
+        process.exit(1);
+    });
+
     async function processBuffer() {
         if (processing) return;
         processing = true;

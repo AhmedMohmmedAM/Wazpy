@@ -1,4 +1,4 @@
-import subprocess, socket, queue, threading, json, time, os, shelve, dbm.dumb
+import subprocess, socket, queue, threading, json, time, os, shelve, dbm.dumb, shutil
 from concurrent.futures import ThreadPoolExecutor
 from .utils.message import Message
 from .utils.connection import Connection
@@ -6,14 +6,18 @@ from .utils.command import Command
 from .utils.qrcode import QRCode
 from .utils.reaction import Reaction
 
-_SERVER_JS_PATH = os.path.join(os.path.dirname(__file__), "node", "server.js")
-_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "node", "config.json")
+_NODE_DIR = os.path.join(os.path.dirname(__file__), "node")
+_NODE_MODULES_DIR = os.path.join(_NODE_DIR, "node_modules")
+_SERVER_JS_PATH = os.path.join(_NODE_DIR, "server.js")
+_CONFIG_PATH = os.path.join(_NODE_DIR, "config.json")
 
 with open(_CONFIG_PATH, "r", encoding="utf-8") as file:
     config = json.load(file)
 
 class NodeJS:
     def __init__(self, port: int, host: str, saveCache: bool, cacheFileName: str, dataDir: str):
+        self._ensureDependencies()
+
         self.port = port
         self.host = host
         self.configPath = _CONFIG_PATH
@@ -74,6 +78,27 @@ class NodeJS:
             daemon=True
         )
         self.threading.start()
+
+    def _ensureDependencies(self):
+        if os.path.exists(_NODE_MODULES_DIR):
+            return
+
+        print("[\033[1;32mWazpy-Client\033[0m] First run detected - Installing Node.js dependencies (This may take a minute)...")
+
+        try:
+            subprocess.run(
+                ["npm", "install", "--omit=dev"],
+                cwd=_NODE_DIR,
+                check=True,
+                shell=True
+            )
+            print("[\033[1;32mWazpy-Client\033[0m] Dependencies installed successfully!")
+        except FileNotFoundError:
+            raise RuntimeError("Node.js/npm not found. Please install Node.js from https://nodejs.org/ and try again.")
+        except subprocess.CalledProcessError as e:
+            if os.path.exists(_NODE_MODULES_DIR):
+                shutil.rmtree(_NODE_MODULES_DIR)
+            raise RuntimeError(f"Failed to install Node.js dependencies: {e}")
 
     def connectToServer(self):
         for _ in range(50):
