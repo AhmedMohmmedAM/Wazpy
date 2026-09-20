@@ -32,7 +32,7 @@ pip install wazpy
 
 ```python
 from wazpy import WhatsAppSocket, Browser
-from wazpy.utils import Message, Command, Connection, Reaction
+from wazpy.utils import QRCode, Message, Command, Connection, Reaction
 
 bot = WhatsAppSocket(
     authName="auth",
@@ -51,7 +51,7 @@ bot = WhatsAppSocket(
 def main():
 
     @bot.on("login")
-    def onLogin(qr):
+    def onLogin(qr: QRCode):
         # scan in the terminal
         qr.render(small=True)
         # or request a pairing code instead:
