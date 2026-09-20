@@ -36,6 +36,9 @@ from wazpy.utils import Message, Command, Connection, Reaction
 
 bot = WhatsAppSocket(
     authName="auth",
+    cacheFileName="cache",
+    dataDir=".wazpy",
+    saveCache=True,
     loggerLevel="silent",
     syncFullHistory=False,
     browserInfo=Browser.ubuntu("Chrome"),
