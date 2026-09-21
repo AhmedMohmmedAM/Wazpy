@@ -4,6 +4,8 @@
 
 Wazpy runs a lightweight Node.js server internally (bundled with the package) that talks to WhatsApp via Baileys, while you write all your bot logic in plain Python.
 
+[CHANGELOG.md](./ChangeLog.md)
+
 ---
 
 ## Features
@@ -338,3 +340,5 @@ MIT
 ## Contributing
 
 Issues and pull requests are welcome. If you run into a bug or have a feature idea, feel free to open an issue.
+
+## Change Log
